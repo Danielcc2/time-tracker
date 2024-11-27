@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Tiempo</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Control de Tiempo</h1>
+        
+        <div class="timer-container">
+            <div class="timer">00:00:00</div>
+            <button id="startBtn">Iniciar</button>
+            <button id="stopBtn" disabled>Detener</button>
+        </div>
+
+        <div class="entry-form">
+            <input type="text" id="description" placeholder="Descripción de la tarea">
+            <button id="saveBtn" disabled>Guardar entrada</button>
+        </div>
+
+        <div class="entries-list">
+            <h2>Registros de Tiempo</h2>
+            <div id="entriesList"></div>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html> 
