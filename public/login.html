@@ -107,28 +107,40 @@
             <div id="errorMessage" class="error-message">
                 Usuario o contraseña incorrectos
             </div>
+            <div class="register-link">
+                ¿No tienes cuenta? <a href="/register">Regístrate aquí</a>
+            </div>
         </form>
     </div>
     <script>
-        const defaultCredentials = {
-            username: 'admin',
-            password: 'admin123'
-        };
-
-        document.getElementById('loginForm').addEventListener('submit', function(e) {
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
             const errorMessage = document.getElementById('errorMessage');
             
-            if (username === defaultCredentials.username && 
-                password === defaultCredentials.password) {
-                // Guardar el estado de autenticación
-                localStorage.setItem('isAuthenticated', 'true');
-                // Redirigir a la página principal
-                window.location.href = '/index.html';
-            } else {
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    localStorage.setItem('isAuthenticated', 'true');
+                    localStorage.setItem('userName', data.name);
+                    localStorage.setItem('userId', data.userId);
+                    window.location.href = '/index.html';
+                } else {
+                    errorMessage.style.display = 'block';
+                }
+            } catch (error) {
+                errorMessage.textContent = 'Error al conectar con el servidor';
                 errorMessage.style.display = 'block';
             }
         });

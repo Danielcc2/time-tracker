@@ -17,12 +17,15 @@ const closeModal = document.querySelector('.close-modal');
 function checkAuth() {
     if (!localStorage.getItem('isAuthenticated')) {
         window.location.href = '/login';
+    } else {
+        updateUserName();
     }
 }
 
 // Función para cerrar sesión
 function logout() {
     localStorage.removeItem('isAuthenticated');
+    localStorage.removeItem('userName');
     window.location.href = '/login';
 }
 
@@ -98,15 +101,12 @@ saveBtn.addEventListener('click', async () => {
         formData.append('duration', String(elapsedTime));
         formData.append('photo', photoInput.files[0]);
 
-        console.log('Enviando datos:', {
-            description: descriptionInput.value.trim(),
-            startTime: new Date(startTime).toISOString(),
-            endTime: new Date().toISOString(),
-            duration: elapsedTime
-        });
-
+        const userId = localStorage.getItem('userId');
         const response = await fetch('/api/entries', {
             method: 'POST',
+            headers: {
+                'user-id': userId
+            },
             body: formData
         });
 
@@ -135,7 +135,12 @@ saveBtn.addEventListener('click', async () => {
 // Cargar entradas existentes
 async function loadEntries() {
     try {
-        const response = await fetch('/api/entries');
+        const userId = localStorage.getItem('userId');
+        const response = await fetch('/api/entries', {
+            headers: {
+                'user-id': userId
+            }
+        });
         const entries = await response.json();
         
         entriesList.innerHTML = entries.map(entry => `
@@ -177,11 +182,12 @@ async function deleteEntry(id) {
     }
 
     try {
-        const url = `/api/entries/${id}`;
-        console.log('URL de eliminación:', url);
-        
-        const response = await fetch(url, {
-            method: 'DELETE'
+        const userId = localStorage.getItem('userId');
+        const response = await fetch(`/api/entries/${id}`, {
+            method: 'DELETE',
+            headers: {
+                'user-id': userId
+            }
         });
 
         console.log('Respuesta del servidor:', response.status);
@@ -244,4 +250,10 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && modal.style.display === 'block') {
         closeImageModal();
     }
-}); 
+});
+
+// Agregar después de checkAuth()
+function updateUserName() {
+    const userName = localStorage.getItem('userName') || 'Usuario';
+    document.getElementById('userName').textContent = userName;
+} 

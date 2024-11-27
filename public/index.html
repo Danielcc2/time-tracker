@@ -15,9 +15,15 @@
                 <h1>Control de Tiempo</h1>
                 <p class="subtitle">Gestiona tu tiempo de estudio eficientemente</p>
             </div>
-            <button onclick="logout()" class="btn danger logout-btn">
-                <span class="btn-icon">🚪</span> Cerrar Sesión
-            </button>
+            <div class="user-section">
+                <div class="user-info">
+                    <span class="user-icon">👤</span>
+                    <span id="userName" class="user-name"></span>
+                </div>
+                <button onclick="logout()" class="btn danger logout-btn">
+                    <span class="btn-icon">🚪</span> Cerrar Sesión
+                </button>
+            </div>
         </header>
         
         <div class="card timer-card">
