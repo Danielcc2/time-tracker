@@ -77,13 +77,51 @@ async function loadEntries() {
         const entries = await response.json();
         
         entriesList.innerHTML = entries.map(entry => `
-            <div class="entry-item">
+            <div class="entry-item" data-id="${entry.id}">
                 <span>${entry.description}</span>
-                <span>${formatTime(entry.duration)}</span>
+                <div class="entry-actions">
+                    <span>${formatTime(entry.duration)}</span>
+                    <button class="delete-btn" onclick="deleteEntry(${entry.id})">
+                        ❌
+                    </button>
+                </div>
             </div>
         `).join('');
     } catch (error) {
         console.error('Error al cargar las entradas:', error);
+    }
+}
+
+// Agregar la función para eliminar entradas
+async function deleteEntry(id) {
+    console.log('Tipo de ID a eliminar:', typeof id, 'Valor:', id);
+    
+    if (!confirm('¿Estás seguro de que quieres eliminar este registro?')) {
+        return;
+    }
+
+    try {
+        const url = `/api/entries/${id}`;
+        console.log('URL de eliminación:', url);
+        
+        const response = await fetch(url, {
+            method: 'DELETE'
+        });
+
+        console.log('Respuesta del servidor:', response.status);
+        
+        if (response.ok) {
+            const data = await response.json();
+            console.log('Registro eliminado:', data);
+            await loadEntries();
+        } else {
+            const error = await response.json();
+            console.error('Error al eliminar:', error);
+            alert('No se pudo eliminar el registro');
+        }
+    } catch (error) {
+        console.error('Error en la petición:', error);
+        alert('Error al intentar eliminar el registro');
     }
 }
 

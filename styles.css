@@ -50,35 +50,38 @@ body {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
-.date-header {
+.entry-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid #e2e8f0;
+  padding: 1rem;
+  margin-bottom: 0.5rem;
+  background: white;
+  border-radius: 0.5rem;
+  box-shadow: var(--shadow);
 }
 
-.date-header h2 {
-  margin: 0;
-  font-size: 1.5rem;
-  color: var(--text-color);
-  font-weight: 500;
-  text-transform: capitalize;
-}
-
-.user-info {
+.entry-content {
+  flex: 1;
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  justify-content: space-between;
+  margin-right: 1rem;
 }
 
-.user-name {
-  font-weight: 500;
-  color: var(--primary-color);
+.delete-btn {
+  background: none;
+  border: none;
+  color: #ef4444;
+  font-size: 1.5rem;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 0.5rem;
+  line-height: 1;
+  border-radius: 50%;
+  transition: all 0.2s;
 }
 
-.task-date {
-  color: #64748b;
-  font-size: 0.9rem;
+.delete-btn:hover {
+  background-color: rgba(239, 68, 68, 0.1);
+  transform: scale(1.1);
 } 
