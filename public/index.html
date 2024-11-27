@@ -5,25 +5,61 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Control de Tiempo</title>
     <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
+    <div class="background-container"></div>
     <div class="container">
-        <h1>Control de Tiempo Para Elena</h1>
+        <header class="app-header">
+            <h1>Control de Tiempo</h1>
+            <p class="subtitle">Gestiona tu tiempo de estudio eficientemente</p>
+        </header>
         
-        <div class="timer-container">
-            <div class="timer">00:00:00</div>
-            <button id="startBtn">Iniciar</button>
-            <button id="stopBtn" disabled>Detener</button>
+        <div class="card timer-card">
+            <div class="timer-container">
+                <div class="timer">00:00:00</div>
+                <div class="timer-controls">
+                    <button id="startBtn" class="btn primary">
+                        <span class="btn-icon">▶</span> Iniciar
+                    </button>
+                    <button id="stopBtn" class="btn danger" disabled>
+                        <span class="btn-icon">⏹</span> Detener
+                    </button>
+                </div>
+            </div>
+
+            <div class="entry-form">
+                <div class="input-group">
+                    <input type="text" 
+                           id="description" 
+                           placeholder="¿Qué estás estudiando?"
+                           class="input-field">
+                    <div class="file-input-container">
+                        <input type="file" 
+                               id="photoInput" 
+                               accept="image/*" 
+                               class="file-input"
+                               required>
+                        <label for="photoInput" class="file-label">
+                            <span class="btn-icon">📷</span> Agregar foto
+                        </label>
+                    </div>
+                </div>
+                <button id="saveBtn" class="btn success" disabled>
+                    <span class="btn-icon">💾</span> Guardar
+                </button>
+            </div>
         </div>
 
-        <div class="entry-form">
-            <input type="text" id="description" placeholder="Descripción de la tarea">
-            <button id="saveBtn" disabled>Guardar entrada</button>
+        <div class="card entries-card">
+            <h2>Historial de Estudio</h2>
+            <div id="entriesList" class="entries-list"></div>
         </div>
-
-        <div class="entries-list">
-            <h2>Registros de Tiempo</h2>
-            <div id="entriesList"></div>
+    </div>
+    <div id="imageModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <img id="modalImage" src="" alt="Imagen ampliada">
         </div>
     </div>
     <script src="app.js"></script>
