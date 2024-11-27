@@ -13,6 +13,22 @@ const modal = document.getElementById('imageModal');
 const modalImg = document.getElementById('modalImage');
 const closeModal = document.querySelector('.close-modal');
 
+// Agregar al inicio del archivo
+function checkAuth() {
+    if (!localStorage.getItem('isAuthenticated')) {
+        window.location.href = '/login';
+    }
+}
+
+// Función para cerrar sesión
+function logout() {
+    localStorage.removeItem('isAuthenticated');
+    window.location.href = '/login';
+}
+
+// Verificar autenticación al cargar la página
+checkAuth();
+
 // Formatear tiempo
 function formatTime(seconds) {
     const hrs = Math.floor(seconds / 3600);
