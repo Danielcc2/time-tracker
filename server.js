@@ -1,6 +1,11 @@
+require('dotenv').config();
+const mongoose = require('mongoose');
+const User = require('./models/User');
+const TimeEntry = require('./models/TimeEntry');
+const bcrypt = require('bcryptjs');
 const express = require('express');
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 3001;
 const path = require('path');
 const compression = require('compression');
 const helmet = require('helmet');
@@ -49,80 +54,80 @@ app.get('/login', (req, res) => {
 app.use(express.static('public'));
 app.use('/uploads', express.static('public/uploads'));
 
-// Array para almacenar los registros de tiempo
-let timeEntries = [];
+// Conectar a MongoDB
+mongoose.connect(process.env.MONGODB_URI)
+    .then(() => console.log('Conectado a MongoDB'))
+    .catch(err => console.error('Error conectando a MongoDB:', err));
 
 // API Routes
-app.get('/api/entries', (req, res) => {
-    const userId = req.headers['user-id'];
-    if (!userId) {
-        return res.status(401).json({ error: 'Usuario no autenticado' });
+app.get('/api/entries', async (req, res) => {
+    try {
+        const userId = req.headers['user-id'];
+        if (!userId) {
+            return res.status(401).json({ error: 'Usuario no autenticado' });
+        }
+
+        const entries = await TimeEntry.find({ userId })
+            .sort({ createdAt: -1 });
+
+        res.json(entries);
+    } catch (error) {
+        console.error('Error al obtener entries:', error);
+        res.status(500).json({ error: 'Error al obtener registros' });
     }
-    
-    const userEntries = timeEntries.filter(entry => entry.userId === userId);
-    res.json(userEntries);
 });
 
-app.post('/api/entries', upload.single('photo'), (req, res) => {
-    const userId = req.headers['user-id'];
-    if (!userId) {
-        return res.status(401).json({ error: 'Usuario no autenticado' });
-    }
-
-    const { description, startTime, endTime, duration } = req.body;
-    
+app.post('/api/entries', upload.single('photo'), async (req, res) => {
     try {
-        // Validaciones...
-        if (!description || description.trim() === '') {
-            throw new Error('Falta la descripción');
+        const userId = req.headers['user-id'];
+        if (!userId) {
+            return res.status(401).json({ error: 'Usuario no autenticado' });
         }
-        
-        if (!startTime || isNaN(new Date(startTime).getTime())) {
-            throw new Error('Hora de inicio inválida');
+
+        const { description, startTime, endTime, duration } = req.body;
+
+        if (!description || !startTime || !endTime || !duration || !req.file) {
+            return res.status(400).json({ error: 'Todos los campos son requeridos' });
         }
-        
-        if (!endTime || isNaN(new Date(endTime).getTime())) {
-            throw new Error('Hora de fin inválida');
-        }
-        
-        if (!duration || isNaN(Number(duration))) {
-            throw new Error('Duración inválida');
-        }
-        
-        if (!req.file) {
-            throw new Error('Falta la foto');
-        }
-        
-        const entry = {
-            id: Number(Date.now()),
-            userId: userId,
+
+        const entry = new TimeEntry({
+            userId,
             description: description.trim(),
-            startTime: new Date(startTime).toISOString(),
-            endTime: new Date(endTime).toISOString(),
+            startTime: new Date(startTime),
+            endTime: new Date(endTime),
             duration: Number(duration),
             photoUrl: `/uploads/${req.file.filename}`
-        };
-        
-        console.log('Nueva entrada creada:', entry);
-        timeEntries.push(entry);
+        });
+
+        await entry.save();
         res.status(201).json(entry);
-        
     } catch (error) {
-        console.error('Error al crear entrada:', error.message);
-        res.status(400).json({ error: error.message });
+        console.error('Error al crear entry:', error);
+        res.status(500).json({ error: 'Error al crear registro' });
     }
 });
 
-app.delete('/api/entries/:id', (req, res) => {
-    const id = parseInt(req.params.id);
-    const index = timeEntries.findIndex(entry => entry.id === id);
-    
-    if (index === -1) {
-        return res.status(404).json({ error: 'Registro no encontrado' });
+app.delete('/api/entries/:id', async (req, res) => {
+    try {
+        const userId = req.headers['user-id'];
+        if (!userId) {
+            return res.status(401).json({ error: 'Usuario no autenticado' });
+        }
+
+        const entry = await TimeEntry.findOneAndDelete({
+            _id: req.params.id,
+            userId
+        });
+
+        if (!entry) {
+            return res.status(404).json({ error: 'Registro no encontrado' });
+        }
+
+        res.json({ message: 'Registro eliminado correctamente' });
+    } catch (error) {
+        console.error('Error al eliminar entry:', error);
+        res.status(500).json({ error: 'Error al eliminar registro' });
     }
-    
-    const deletedEntry = timeEntries.splice(index, 1)[0];
-    res.status(200).json({ message: 'Registro eliminado correctamente' });
 });
 
 // Agregar después de las importaciones existentes
@@ -133,65 +138,83 @@ app.get('/register', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'register.html'));
 });
 
-app.post('/api/register', (req, res) => {
-    const { name, email, username, password } = req.body;
+app.post('/api/register', async (req, res) => {
+    try {
+        const { name, email, username, password } = req.body;
 
-    // Validaciones básicas
-    if (!name || !email || !username || !password) {
-        return res.status(400).json({ error: 'Todos los campos son requeridos' });
+        // Validaciones básicas
+        if (!name || !email || !username || !password) {
+            return res.status(400).json({ error: 'Todos los campos son requeridos' });
+        }
+
+        // Verificar si el usuario ya existe
+        const existingUser = await User.findOne({ 
+            $or: [{ email }, { username }] 
+        });
+
+        if (existingUser) {
+            return res.status(400).json({ 
+                error: 'El usuario o correo electrónico ya está registrado' 
+            });
+        }
+
+        // Hashear la contraseña
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Crear nuevo usuario
+        const user = new User({
+            name,
+            email,
+            username,
+            password: hashedPassword
+        });
+
+        await user.save();
+
+        res.status(201).json({ 
+            message: 'Usuario registrado correctamente',
+            userId: user._id
+        });
+    } catch (error) {
+        console.error('Error en registro:', error);
+        res.status(500).json({ error: 'Error al registrar usuario' });
     }
-
-    // Verificar si el usuario ya existe
-    if (users.find(u => u.username === username)) {
-        return res.status(400).json({ error: 'El usuario ya existe' });
-    }
-
-    // Verificar si el email ya existe
-    if (users.find(u => u.email === email)) {
-        return res.status(400).json({ error: 'El correo electrónico ya está registrado' });
-    }
-
-    // Crear nuevo usuario
-    const newUser = {
-        id: Date.now(),
-        name,
-        email,
-        username,
-        password // En una aplicación real, deberías hashear la contraseña
-    };
-
-    users.push(newUser);
-    console.log('Usuario registrado:', newUser);
-    
-    // Devolver el userId en la respuesta
-    res.status(201).json({ 
-        message: 'Usuario registrado correctamente',
-        userId: newUser.id.toString()
-    });
 });
 
 // Modificar la ruta de login
-app.post('/api/login', (req, res) => {
-    const { username, password } = req.body;
-    
-    if (username === 'admin' && password === 'admin123') {
-        return res.json({ 
-            success: true,
-            name: 'Administrador',
-            userId: 'admin'
-        });
-    }
+app.post('/api/login', async (req, res) => {
+    try {
+        const { username, password } = req.body;
 
-    const user = users.find(u => u.username === username && u.password === password);
-    
-    if (user) {
+        // Mantener admin por defecto
+        if (username === 'admin' && password === 'admin123') {
+            return res.json({ 
+                success: true,
+                name: 'Administrador',
+                userId: 'admin'
+            });
+        }
+
+        // Buscar usuario
+        const user = await User.findOne({ username });
+        if (!user) {
+            return res.status(401).json({ error: 'Credenciales inválidas' });
+        }
+
+        // Verificar contraseña
+        const isValid = await bcrypt.compare(password, user.password);
+        if (!isValid) {
+            return res.status(401).json({ error: 'Credenciales inválidas' });
+        }
+
         res.json({ 
             success: true,
             name: user.name,
-            userId: user.id.toString()
+            userId: user._id
         });
-    } else {
-        res.status(401).json({ error: 'Credenciales inválidas' });
+    } catch (error) {
+        console.error('Error en login:', error);
+        res.status(500).json({ error: 'Error al iniciar sesión' });
     }
 });
 
