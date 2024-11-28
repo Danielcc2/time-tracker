@@ -143,8 +143,15 @@ async function loadEntries() {
         });
         const entries = await response.json();
         
-        entriesList.innerHTML = entries.map(entry => `
-            <div class="entry-item" data-id="${entry.id}">
+        // Debug: ver la estructura de las entradas
+        console.log('Entradas recibidas:', entries);
+        
+        entriesList.innerHTML = entries.map(entry => {
+            // Debug: ver cada entrada individual
+            console.log('Procesando entrada:', entry);
+            
+            return `
+            <div class="entry-item" data-id="${entry._id}">
                 <div class="entry-info">
                     <div class="entry-content">
                         <img src="${entry.photoUrl}" 
@@ -162,12 +169,14 @@ async function loadEntries() {
                     </div>
                 </div>
                 <div class="entry-actions">
-                    <button class="delete-btn" onclick="deleteEntry(${entry.id})" title="Eliminar registro">
+                    <button class="delete-btn" 
+                            onclick="deleteEntry('${entry._id}')" 
+                            title="Eliminar registro">
                         🗑️
                     </button>
                 </div>
             </div>
-        `).join('');
+        `}).join('');
     } catch (error) {
         console.error('Error al cargar las entradas:', error);
     }
@@ -175,35 +184,85 @@ async function loadEntries() {
 
 // Agregar la función para eliminar entradas
 async function deleteEntry(id) {
-    console.log('Tipo de ID a eliminar:', typeof id, 'Valor:', id);
-    
     if (!confirm('¿Estás seguro de que quieres eliminar este registro?')) {
         return;
     }
 
     try {
         const userId = localStorage.getItem('userId');
+        
+        // Verificar datos necesarios
+        if (!userId) {
+            console.error('No se encontró userId');
+            throw new Error('No hay sesión de usuario');
+        }
+
+        if (!id) {
+            console.error('ID inválido:', id);
+            throw new Error('ID de registro inválido');
+        }
+
+        // Log pre-request
+        console.log('Datos de la petición:', {
+            method: 'DELETE',
+            url: `/api/entries/${id}`,
+            userId: userId
+        });
+
         const response = await fetch(`/api/entries/${id}`, {
             method: 'DELETE',
             headers: {
-                'user-id': userId
+                'user-id': userId,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
             }
         });
 
-        console.log('Respuesta del servidor:', response.status);
-        
-        if (response.ok) {
-            const data = await response.json();
-            console.log('Registro eliminado:', data);
-            await loadEntries();
-        } else {
-            const error = await response.json();
-            console.error('Error al eliminar:', error);
-            alert('No se pudo eliminar el registro');
+        // Log de respuesta inmediata
+        console.log('Respuesta del servidor:', {
+            ok: response.ok,
+            status: response.status,
+            statusText: response.statusText
+        });
+
+        let responseData;
+        try {
+            const textResponse = await response.text();
+            console.log('Respuesta texto:', textResponse);
+            
+            if (textResponse) {
+                responseData = JSON.parse(textResponse);
+                console.log('Respuesta parseada:', responseData);
+            }
+        } catch (parseError) {
+            console.error('Error al parsear respuesta:', parseError);
         }
+
+        // Verificar respuesta
+        if (!response.ok) {
+            throw new Error(
+                responseData?.error || 
+                responseData?.message || 
+                `Error del servidor (${response.status})`
+            );
+        }
+
+        // Éxito
+        console.log('Eliminación exitosa');
+        const entryElement = document.querySelector(`[data-id="${id}"]`);
+        if (entryElement) {
+            entryElement.remove();
+        }
+        await loadEntries();
     } catch (error) {
-        console.error('Error en la petición:', error);
-        alert('Error al intentar eliminar el registro');
+        // Log de error detallado
+        console.error('=== Error Detallado ===');
+        console.error('Tipo:', error.constructor.name);
+        console.error('Mensaje:', error.message);
+        console.error('Stack:', error.stack);
+        console.error('==================');
+        
+        alert(`Error al eliminar: ${error.message}`);
     }
 }
 
