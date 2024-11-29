@@ -67,7 +67,7 @@ app.use(helmet({
     contentSecurityPolicy: false  // Deshabilitar temporalmente para desarrollo
 }));
 
-// Configuración de multer para usar memoria en lugar de disco
+// Configuración de multer para memoria
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
@@ -120,9 +120,12 @@ app.get('/api/entries', async (req, res) => {
 app.post('/api/entries', upload.single('photo'), async (req, res) => {
     try {
         console.log('\n=== Procesando subida de archivo ===');
+        console.log('Ambiente:', process.env.NODE_ENV);
+        console.log('Headers:', req.headers);
         console.log('Body:', req.body);
 
         if (!req.file) {
+            console.error('No se recibió archivo');
             return res.status(400).json({ 
                 error: 'No se proporcionó imagen',
                 body: req.body
@@ -132,52 +135,79 @@ app.post('/api/entries', upload.single('photo'), async (req, res) => {
         console.log('Archivo recibido:', {
             nombre: req.file.originalname,
             tamaño: req.file.size,
-            tipo: req.file.mimetype
+            tipo: req.file.mimetype,
+            buffer: req.file.buffer ? 'presente' : 'ausente'
         });
 
-        // Subir directamente el buffer a Cloudinary
+        // Verificar configuración de Cloudinary
+        console.log('Config Cloudinary:', {
+            cloudName: process.env.CLOUDINARY_CLOUD_NAME ? '✓' : '✗',
+            apiKey: process.env.CLOUDINARY_API_KEY ? '✓' : '✗',
+            apiSecret: process.env.CLOUDINARY_API_SECRET ? '✓' : '✗'
+        });
+
+        // Subir a Cloudinary usando Promise
         try {
-            const result = await cloudinary.uploader.upload_stream({
-                folder: 'time-tracker',
-                resource_type: 'auto'
-            }, async (error, result) => {
-                if (error) {
-                    console.error('Error de Cloudinary:', error);
-                    return res.status(500).json({ error: 'Error al subir la imagen' });
-                }
+            const uploadPromise = new Promise((resolve, reject) => {
+                const uploadStream = cloudinary.uploader.upload_stream({
+                    folder: 'time-tracker',
+                    resource_type: 'auto'
+                }, (error, result) => {
+                    if (error) {
+                        console.error('Error de Cloudinary:', error);
+                        reject(error);
+                        return;
+                    }
+                    resolve(result);
+                });
 
-                try {
-                    // Crear nueva entrada en la base de datos
-                    const timeEntry = new TimeEntry({
-                        userId: req.headers['user-id'],
-                        description: req.body.description,
-                        duration: parseInt(req.body.duration),
-                        startTime: new Date(req.body.startTime),
-                        endTime: new Date(req.body.endTime),
-                        photoUrl: result.secure_url
-                    });
+                uploadStream.end(req.file.buffer);
+            });
 
-                    await timeEntry.save();
-                    console.log('Entrada guardada:', timeEntry);
+            console.log('Iniciando subida a Cloudinary...');
+            const result = await uploadPromise;
+            console.log('Subida exitosa:', result.secure_url);
 
-                    res.status(201).json({
-                        message: 'Entrada creada exitosamente',
-                        entry: timeEntry
-                    });
-                } catch (dbError) {
-                    console.error('Error al guardar en DB:', dbError);
-                    res.status(500).json({ error: 'Error al guardar en la base de datos' });
-                }
-            }).end(req.file.buffer);
+            // Crear entrada en la base de datos
+            const timeEntry = new TimeEntry({
+                userId: req.headers['user-id'],
+                description: req.body.description,
+                duration: parseInt(req.body.duration),
+                startTime: new Date(req.body.startTime),
+                endTime: new Date(req.body.endTime),
+                photoUrl: result.secure_url
+            });
 
-        } catch (cloudinaryError) {
-            console.error('Error al subir a Cloudinary:', cloudinaryError);
-            return res.status(500).json({ error: 'Error al subir la imagen' });
+            await timeEntry.save();
+            console.log('Entrada guardada en DB:', timeEntry._id);
+
+            res.status(201).json({
+                message: 'Entrada creada exitosamente',
+                entry: timeEntry
+            });
+
+        } catch (uploadError) {
+            console.error('Error detallado de subida:', {
+                message: uploadError.message,
+                name: uploadError.name,
+                stack: uploadError.stack
+            });
+            return res.status(500).json({ 
+                error: 'Error al subir la imagen',
+                details: uploadError.message
+            });
         }
 
     } catch (error) {
-        console.error('Error en /api/entries:', error);
-        res.status(500).json({ error: 'Error al crear el registro' });
+        console.error('Error general:', {
+            message: error.message,
+            name: error.name,
+            stack: error.stack
+        });
+        res.status(500).json({ 
+            error: 'Error al crear el registro',
+            details: error.message
+        });
     }
 });
 
