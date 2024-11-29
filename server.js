@@ -20,6 +20,7 @@ console.log('Verificando configuración de Cloudinary:', {
     apiSecret: process.env.CLOUDINARY_API_SECRET ? '✓' : '✗'
 });
 
+// Método 1: Configuración directa
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
@@ -27,14 +28,28 @@ cloudinary.config({
     secure: true
 });
 
-// Verificar la configuración
+// Método alternativo: Usar URL
+// cloudinary.config(process.env.CLOUDINARY_URL);
+
+// Agregar verificación más detallada
+const verificarConfiguracionCloudinary = () => {
+    const config = cloudinary.config();
+    if (!config.cloud_name || !config.api_key || !config.api_secret) {
+        console.error('Configuración de Cloudinary incompleta:', {
+            cloud_name: !!config.cloud_name,
+            api_key: !!config.api_key,
+            api_secret: !!config.api_secret
+        });
+        throw new Error('Configuración de Cloudinary incompleta');
+    }
+    console.log('Configuración de Cloudinary verificada correctamente');
+};
+
+// Llamar a la verificación
 try {
-    // Intentar una operación simple para verificar la configuración
-    cloudinary.api.ping()
-        .then(() => console.log('Conexión con Cloudinary establecida correctamente'))
-        .catch(error => console.error('Error al conectar con Cloudinary:', error));
+    verificarConfiguracionCloudinary();
 } catch (error) {
-    console.error('Error al configurar Cloudinary:', error);
+    console.error('Error en la configuración:', error);
 }
 
 // Agregar esta función después de la configuración de Cloudinary
