@@ -11,6 +11,54 @@ const compression = require('compression');
 const helmet = require('helmet');
 const multer = require('multer');
 const fs = require('fs');
+const cloudinary = require('cloudinary').v2;
+
+// Verificar que las variables de entorno están disponibles
+console.log('Verificando configuración de Cloudinary:', {
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME ? '✓' : '✗',
+    apiKey: process.env.CLOUDINARY_API_KEY ? '✓' : '✗',
+    apiSecret: process.env.CLOUDINARY_API_SECRET ? '✓' : '✗'
+});
+
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+// Verificar la configuración
+try {
+    // Intentar una operación simple para verificar la configuración
+    cloudinary.api.ping()
+        .then(() => console.log('Conexión con Cloudinary establecida correctamente'))
+        .catch(error => console.error('Error al conectar con Cloudinary:', error));
+} catch (error) {
+    console.error('Error al configurar Cloudinary:', error);
+}
+
+// Agregar esta función después de la configuración de Cloudinary
+async function checkLastUpload() {
+    try {
+        const result = await cloudinary.api.resources({
+            type: 'upload',
+            prefix: 'time-tracker', // ajusta esto según tu folder configurado
+            max_results: 1,
+            direction: 'desc'
+        });
+        
+        console.log('Última imagen subida:', {
+            url: result.resources[0]?.url,
+            createdAt: result.resources[0]?.created_at,
+            format: result.resources[0]?.format,
+            bytes: result.resources[0]?.bytes
+        });
+    } catch (error) {
+        console.error('Error al verificar uploads:', error);
+    }
+}
+
+// Llamar a la función
+checkLastUpload();
 
 // Middleware para procesar JSON
 app.use(express.json());
@@ -22,18 +70,19 @@ app.use(helmet({
 // Configurar multer para el almacenamiento de archivos
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        const uploadDir = 'public/uploads';
-        if (!fs.existsSync(uploadDir)){
-            fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        cb(null, uploadDir);
+        cb(null, '/tmp/');
     },
     filename: function (req, file, cb) {
-        cb(null, Date.now() + '-' + file.originalname);
+        cb(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname));
     }
 });
 
-const upload = multer({ storage: storage });
+const upload = multer({ 
+    storage: storage,
+    limits: {
+        fileSize: 10 * 1024 * 1024 // 10MB
+    }
+});
 
 // Logging middleware
 app.use((req, res, next) => {
@@ -79,31 +128,59 @@ app.get('/api/entries', async (req, res) => {
 
 app.post('/api/entries', upload.single('photo'), async (req, res) => {
     try {
-        const userId = req.headers['user-id'];
-        if (!userId) {
-            return res.status(401).json({ error: 'Usuario no autenticado' });
+        console.log('\n=== Procesando subida de archivo ===');
+        console.log('File:', req.file);
+        console.log('Body:', req.body);
+
+        if (!req.file) {
+            return res.status(400).json({ 
+                error: 'No se proporcionó imagen',
+                body: req.body
+            });
         }
 
-        const { description, startTime, endTime, duration } = req.body;
-
-        if (!description || !startTime || !endTime || !duration || !req.file) {
-            return res.status(400).json({ error: 'Todos los campos son requeridos' });
-        }
-
-        const entry = new TimeEntry({
-            userId,
-            description: description.trim(),
-            startTime: new Date(startTime),
-            endTime: new Date(endTime),
-            duration: Number(duration),
-            photoUrl: `/uploads/${req.file.filename}`
+        console.log('Archivo recibido:', {
+            nombre: req.file.originalname,
+            tamaño: req.file.size,
+            tipo: req.file.mimetype,
+            ruta: req.file.path
         });
 
-        await entry.save();
-        res.status(201).json(entry);
+        // Intentar subir a Cloudinary
+        try {
+            const result = await cloudinary.uploader.upload(req.file.path, {
+                folder: 'time-tracker',
+                resource_type: 'auto'
+            });
+            
+            console.log('Resultado de Cloudinary:', result);
+
+            // Crear nueva entrada en la base de datos
+            const timeEntry = new TimeEntry({
+                userId: req.headers['user-id'],
+                description: req.body.description,
+                duration: parseInt(req.body.duration),
+                startTime: new Date(req.body.startTime),
+                endTime: new Date(req.body.endTime),
+                photoUrl: result.secure_url
+            });
+
+            await timeEntry.save();
+            console.log('Entrada guardada en la base de datos:', timeEntry);
+
+            res.status(201).json({
+                message: 'Entrada creada exitosamente',
+                entry: timeEntry
+            });
+            
+        } catch (cloudinaryError) {
+            console.error('Error al subir a Cloudinary:', cloudinaryError);
+            return res.status(500).json({ error: 'Error al subir la imagen' });
+        }
+
     } catch (error) {
-        console.error('Error al crear entry:', error);
-        res.status(500).json({ error: 'Error al crear registro' });
+        console.error('Error en la ruta /api/entries:', error);
+        res.status(500).json({ error: 'Error al crear el registro' });
     }
 });
 
