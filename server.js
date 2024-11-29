@@ -67,18 +67,9 @@ app.use(helmet({
     contentSecurityPolicy: false  // Deshabilitar temporalmente para desarrollo
 }));
 
-// Configurar multer para el almacenamiento de archivos
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, '/tmp/');
-    },
-    filename: function (req, file, cb) {
-        cb(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname));
-    }
-});
-
-const upload = multer({ 
-    storage: storage,
+// Configuración de multer para usar memoria en lugar de disco
+const upload = multer({
+    storage: multer.memoryStorage(),
     limits: {
         fileSize: 10 * 1024 * 1024 // 10MB
     }
@@ -129,7 +120,6 @@ app.get('/api/entries', async (req, res) => {
 app.post('/api/entries', upload.single('photo'), async (req, res) => {
     try {
         console.log('\n=== Procesando subida de archivo ===');
-        console.log('File:', req.file);
         console.log('Body:', req.body);
 
         if (!req.file) {
@@ -142,44 +132,51 @@ app.post('/api/entries', upload.single('photo'), async (req, res) => {
         console.log('Archivo recibido:', {
             nombre: req.file.originalname,
             tamaño: req.file.size,
-            tipo: req.file.mimetype,
-            ruta: req.file.path
+            tipo: req.file.mimetype
         });
 
-        // Intentar subir a Cloudinary
+        // Subir directamente el buffer a Cloudinary
         try {
-            const result = await cloudinary.uploader.upload(req.file.path, {
+            const result = await cloudinary.uploader.upload_stream({
                 folder: 'time-tracker',
                 resource_type: 'auto'
-            });
-            
-            console.log('Resultado de Cloudinary:', result);
+            }, async (error, result) => {
+                if (error) {
+                    console.error('Error de Cloudinary:', error);
+                    return res.status(500).json({ error: 'Error al subir la imagen' });
+                }
 
-            // Crear nueva entrada en la base de datos
-            const timeEntry = new TimeEntry({
-                userId: req.headers['user-id'],
-                description: req.body.description,
-                duration: parseInt(req.body.duration),
-                startTime: new Date(req.body.startTime),
-                endTime: new Date(req.body.endTime),
-                photoUrl: result.secure_url
-            });
+                try {
+                    // Crear nueva entrada en la base de datos
+                    const timeEntry = new TimeEntry({
+                        userId: req.headers['user-id'],
+                        description: req.body.description,
+                        duration: parseInt(req.body.duration),
+                        startTime: new Date(req.body.startTime),
+                        endTime: new Date(req.body.endTime),
+                        photoUrl: result.secure_url
+                    });
 
-            await timeEntry.save();
-            console.log('Entrada guardada en la base de datos:', timeEntry);
+                    await timeEntry.save();
+                    console.log('Entrada guardada:', timeEntry);
 
-            res.status(201).json({
-                message: 'Entrada creada exitosamente',
-                entry: timeEntry
-            });
-            
+                    res.status(201).json({
+                        message: 'Entrada creada exitosamente',
+                        entry: timeEntry
+                    });
+                } catch (dbError) {
+                    console.error('Error al guardar en DB:', dbError);
+                    res.status(500).json({ error: 'Error al guardar en la base de datos' });
+                }
+            }).end(req.file.buffer);
+
         } catch (cloudinaryError) {
             console.error('Error al subir a Cloudinary:', cloudinaryError);
             return res.status(500).json({ error: 'Error al subir la imagen' });
         }
 
     } catch (error) {
-        console.error('Error en la ruta /api/entries:', error);
+        console.error('Error en /api/entries:', error);
         res.status(500).json({ error: 'Error al crear el registro' });
     }
 });
