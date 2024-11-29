@@ -23,7 +23,8 @@ console.log('Verificando configuración de Cloudinary:', {
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+    secure: true
 });
 
 // Verificar la configuración
@@ -78,15 +79,29 @@ const upload = multer({
 // Función para subir a Cloudinary usando el stream API
 const uploadToCloudinary = (buffer) => {
     return new Promise((resolve, reject) => {
+        const timestamp = Math.round(new Date().getTime() / 1000);
+        const signature = cloudinary.utils.api_sign_request({
+            timestamp: timestamp,
+            folder: 'time-tracker'
+        }, process.env.CLOUDINARY_API_SECRET);
+
         const uploadStream = cloudinary.uploader.upload_stream(
-            { folder: 'time-tracker' },
+            {
+                folder: 'time-tracker',
+                timestamp: timestamp,
+                signature: signature,
+                api_key: process.env.CLOUDINARY_API_KEY
+            },
             (error, result) => {
-                if (error) reject(error);
-                else resolve(result);
+                if (error) {
+                    console.error('Error de Cloudinary:', error);
+                    reject(error);
+                } else {
+                    resolve(result);
+                }
             }
         );
         
-        // Crear un stream desde el buffer
         const bufferStream = new require('stream').Readable();
         bufferStream.push(buffer);
         bufferStream.push(null);
