@@ -155,11 +155,28 @@ app.get('/api/entries', async (req, res) => {
 app.post('/api/entries', upload.single('photo'), async (req, res) => {
     try {
         console.log('=== Nueva subida iniciada ===');
+        console.log('Headers recibidos:', req.headers);
+        console.log('Body recibido:', req.body);
         
         // Verificar archivo
-        if (!req.file || !req.file.buffer) {
-            console.error('No hay archivo o buffer');
-            return res.status(400).json({ error: 'No se proporcionó imagen válida' });
+        if (!req.file) {
+            console.error('No se recibió ningún archivo');
+            return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
+        }
+
+        if (!req.file.buffer) {
+            console.error('Archivo recibido pero sin buffer');
+            return res.status(400).json({ error: 'Formato de imagen inválido' });
+        }
+
+        // Verificar Cloudinary antes de intentar subir
+        if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+            console.error('Configuración de Cloudinary incompleta:', {
+                cloudName: !!process.env.CLOUDINARY_CLOUD_NAME,
+                apiKey: !!process.env.CLOUDINARY_API_KEY,
+                apiSecret: !!process.env.CLOUDINARY_API_SECRET
+            });
+            return res.status(500).json({ error: 'Error de configuración del servidor de imágenes' });
         }
 
         // Verificar tamaño
@@ -205,15 +222,12 @@ app.post('/api/entries', upload.single('photo'), async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error detallado:', {
-            mensaje: error.message,
-            tipo: error.name,
-            stack: error.stack
-        });
-
+        console.error('Error completo:', error);
+        console.error('Stack trace:', error.stack);
         res.status(500).json({
             error: 'Error al procesar la imagen',
-            detalles: error.message
+            detalles: error.message,
+            tipo: error.name
         });
     }
 });
