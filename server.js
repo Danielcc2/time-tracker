@@ -20,7 +20,6 @@ console.log('Verificando configuración de Cloudinary:', {
     apiSecret: process.env.CLOUDINARY_API_SECRET ? '✓' : '✗'
 });
 
-// Método 1: Configuración directa
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
@@ -28,28 +27,14 @@ cloudinary.config({
     secure: true
 });
 
-// Método alternativo: Usar URL
-// cloudinary.config(process.env.CLOUDINARY_URL);
-
-// Agregar verificación más detallada
-const verificarConfiguracionCloudinary = () => {
-    const config = cloudinary.config();
-    if (!config.cloud_name || !config.api_key || !config.api_secret) {
-        console.error('Configuración de Cloudinary incompleta:', {
-            cloud_name: !!config.cloud_name,
-            api_key: !!config.api_key,
-            api_secret: !!config.api_secret
-        });
-        throw new Error('Configuración de Cloudinary incompleta');
-    }
-    console.log('Configuración de Cloudinary verificada correctamente');
-};
-
-// Llamar a la verificación
+// Verificar la configuración
 try {
-    verificarConfiguracionCloudinary();
+    // Intentar una operación simple para verificar la configuración
+    cloudinary.api.ping()
+        .then(() => console.log('Conexión con Cloudinary establecida correctamente'))
+        .catch(error => console.error('Error al conectar con Cloudinary:', error));
 } catch (error) {
-    console.error('Error en la configuración:', error);
+    console.error('Error al configurar Cloudinary:', error);
 }
 
 // Agregar esta función después de la configuración de Cloudinary
@@ -167,8 +152,35 @@ app.get('/api/entries', async (req, res) => {
     }
 });
 
+// Agregar después de require('dotenv').config();
+const verificarConfiguracionCloudinary = () => {
+    const configuracionRequerida = {
+        CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
+        CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
+        CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET
+    };
+
+    const faltantes = Object.entries(configuracionRequerida)
+        .filter(([key, value]) => !value)
+        .map(([key]) => key);
+
+    if (faltantes.length > 0) {
+        console.error('❌ Faltan las siguientes variables de entorno:');
+        console.error(faltantes.join('\n'));
+        return false;
+    }
+
+    console.log('✅ Configuración de Cloudinary completa');
+    return true;
+};
+
+// Modificar la ruta de subida de imágenes
 app.post('/api/entries', upload.single('photo'), async (req, res) => {
     try {
+        if (!verificarConfiguracionCloudinary()) {
+            throw new Error('Configuración de Cloudinary incompleta');
+        }
+
         console.log('=== Nueva subida iniciada ===');
         console.log('Headers recibidos:', req.headers);
         console.log('Body recibido:', req.body);
@@ -182,16 +194,6 @@ app.post('/api/entries', upload.single('photo'), async (req, res) => {
         if (!req.file.buffer) {
             console.error('Archivo recibido pero sin buffer');
             return res.status(400).json({ error: 'Formato de imagen inválido' });
-        }
-
-        // Verificar Cloudinary antes de intentar subir
-        if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-            console.error('Configuración de Cloudinary incompleta:', {
-                cloudName: !!process.env.CLOUDINARY_CLOUD_NAME,
-                apiKey: !!process.env.CLOUDINARY_API_KEY,
-                apiSecret: !!process.env.CLOUDINARY_API_SECRET
-            });
-            return res.status(500).json({ error: 'Error de configuración del servidor de imágenes' });
         }
 
         // Verificar tamaño
@@ -237,12 +239,10 @@ app.post('/api/entries', upload.single('photo'), async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error completo:', error);
-        console.error('Stack trace:', error.stack);
-        res.status(500).json({
-            error: 'Error al procesar la imagen',
-            detalles: error.message,
-            tipo: error.name
+        console.error('Error detallado:', error);
+        return res.status(500).json({
+            error: 'Error de configuración del servidor de imágenes',
+            detalles: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
 });
