@@ -106,12 +106,12 @@ async function loadEntries() {
                         <img src="${entry.photoUrl || DEFAULT_IMAGE}" 
                              alt="${entry.photoUrl ? 'Foto del registro' : 'Imagen por defecto'}" 
                              class="entry-image"
+                             onerror="handleImageError(this)"
                              onclick="openModal('${entry.photoUrl || DEFAULT_IMAGE}')"
                              title="${entry.photoUrl ? 'Click para ampliar' : 'Sin foto adjunta'}">
                         <div class="entry-text">
                             <div class="entry-main">
                                 <span class="entry-description">${entry.description}</span>
-                                <span class="entry-duration">${formatTime(entry.duration)}</span>
                             </div>
                             <span class="entry-date">${formatDate(entry.startTime)}</span>
                         </div>
