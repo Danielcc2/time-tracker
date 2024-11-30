@@ -1,10 +1,3 @@
-let startTime = null;
-let timerInterval = null;
-let elapsedTime = 0;
-
-const timerDisplay = document.querySelector('.timer');
-const startBtn = document.getElementById('startBtn');
-const stopBtn = document.getElementById('stopBtn');
 const saveBtn = document.getElementById('saveBtn');
 const descriptionInput = document.getElementById('description');
 const entriesList = document.getElementById('entriesList');
@@ -12,8 +5,9 @@ const photoInput = document.getElementById('photoInput');
 const modal = document.getElementById('imageModal');
 const modalImg = document.getElementById('modalImage');
 const closeModal = document.querySelector('.close-modal');
+const DEFAULT_IMAGE = 'https://em-content.zobj.net/source/microsoft-teams/337/thinking-face_1f914.png'; // Puedes cambiar esta URL por la imagen que prefieras
 
-// Agregar al inicio del archivo
+// Funciones de autenticación
 function checkAuth() {
     if (!localStorage.getItem('isAuthenticated')) {
         window.location.href = '/login';
@@ -22,25 +16,14 @@ function checkAuth() {
     }
 }
 
-// Función para cerrar sesión
 function logout() {
     localStorage.removeItem('isAuthenticated');
     localStorage.removeItem('userName');
     window.location.href = '/login';
 }
 
-// Verificar autenticación al cargar la página
 checkAuth();
 
-// Formatear tiempo
-function formatTime(seconds) {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-}
-
-// Agregar esta función después de formatTime
 function formatDate(dateString) {
     const date = new Date(dateString);
     return date.toLocaleDateString('es-ES', {
@@ -52,54 +35,31 @@ function formatDate(dateString) {
     });
 }
 
-// Actualizar timer
-function updateTimer() {
-    elapsedTime = Math.floor((Date.now() - startTime) / 1000);
-    timerDisplay.textContent = formatTime(elapsedTime);
+// Agregar la función formatTime que aún necesitamos para mostrar las duraciones
+function formatTime(seconds) {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
-
-// Iniciar timer
-startBtn.addEventListener('click', () => {
-    startTime = Date.now();
-    timerInterval = setInterval(updateTimer, 1000);
-    startBtn.disabled = true;
-    stopBtn.disabled = false;
-    saveBtn.disabled = true;
-});
-
-// Detener timer
-stopBtn.addEventListener('click', () => {
-    clearInterval(timerInterval);
-    startBtn.disabled = false;
-    stopBtn.disabled = true;
-    
-    // Solo habilitar el botón de guardar si hay una foto seleccionada
-    if (photoInput.files[0]) {
-        saveBtn.disabled = false;
-    }
-});
 
 // Guardar entrada
 saveBtn.addEventListener('click', async () => {
     try {
-        if (!photoInput.files[0]) {
-            throw new Error('Por favor, selecciona una foto');
-        }
-
         if (!descriptionInput.value.trim()) {
             throw new Error('Por favor, ingresa una descripción');
         }
 
-        if (!startTime || !elapsedTime) {
-            throw new Error('Debes iniciar y detener el cronómetro primero');
-        }
-
         const formData = new FormData();
         formData.append('description', descriptionInput.value.trim());
-        formData.append('startTime', new Date(startTime).toISOString());
+        formData.append('startTime', new Date().toISOString());
         formData.append('endTime', new Date().toISOString());
-        formData.append('duration', String(elapsedTime));
-        formData.append('photo', photoInput.files[0]);
+        formData.append('duration', '0');
+        
+        // Solo agregar la foto si existe
+        if (photoInput.files && photoInput.files[0]) {
+            formData.append('photo', photoInput.files[0]);
+        }
 
         const userId = localStorage.getItem('userId');
         const response = await fetch('/api/entries', {
@@ -110,22 +70,17 @@ saveBtn.addEventListener('click', async () => {
             body: formData
         });
 
-        const result = await response.json();
-
-        if (response.ok) {
-            console.log('Registro guardado:', result);
-            
-            // Limpiar formulario
-            descriptionInput.value = '';
-            photoInput.value = '';
-            saveBtn.disabled = true;
-            await loadEntries();
-            timerDisplay.textContent = '00:00:00';
-            elapsedTime = 0;
-            startTime = null;
-        } else {
-            throw new Error(result.error || 'Error al guardar el registro');
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Error al guardar el registro');
         }
+
+        const result = await response.json();
+        console.log('Registro guardado:', result);
+        descriptionInput.value = '';
+        photoInput.value = '';
+        await loadEntries();
+
     } catch (error) {
         console.error('Error:', error);
         alert(error.message);
@@ -143,22 +98,16 @@ async function loadEntries() {
         });
         const entries = await response.json();
         
-        // Debug: ver la estructura de las entradas
-        console.log('Entradas recibidas:', entries);
-        
         entriesList.innerHTML = entries.map(entry => {
-            // Debug: ver cada entrada individual
-            console.log('Procesando entrada:', entry);
-            
             return `
             <div class="entry-item" data-id="${entry._id}">
                 <div class="entry-info">
                     <div class="entry-content">
-                        <img src="${entry.photoUrl}" 
-                             alt="Foto del registro" 
+                        <img src="${entry.photoUrl || DEFAULT_IMAGE}" 
+                             alt="${entry.photoUrl ? 'Foto del registro' : 'Imagen por defecto'}" 
                              class="entry-image"
-                             onclick="openModal('${entry.photoUrl}')"
-                             title="Click para ampliar">
+                             onclick="openModal('${entry.photoUrl || DEFAULT_IMAGE}')"
+                             title="${entry.photoUrl ? 'Click para ampliar' : 'Sin foto adjunta'}">
                         <div class="entry-text">
                             <div class="entry-main">
                                 <span class="entry-description">${entry.description}</span>
@@ -269,11 +218,9 @@ async function deleteEntry(id) {
 // Cargar entradas al iniciar
 loadEntries();
 
-// Agregar este evento después de las otras declaraciones de eventos
+// Modificar el evento del photoInput
 photoInput.addEventListener('change', () => {
-    if (photoInput.files[0] && !startBtn.disabled) {
-        saveBtn.disabled = false;
-    }
+    saveBtn.disabled = false;
 });
 
 // Función para abrir el modal

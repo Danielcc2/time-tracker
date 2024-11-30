@@ -27,36 +27,24 @@
         </header>
         
         <div class="card timer-card">
-            <div class="timer-container">
-                <div class="timer">00:00:00</div>
-                <div class="timer-controls">
-                    <button id="startBtn" class="btn primary">
-                        <span class="btn-icon">▶</span> Iniciar
-                    </button>
-                    <button id="stopBtn" class="btn danger" disabled>
-                        <span class="btn-icon">⏹</span> Detener
-                    </button>
-                </div>
-            </div>
-
             <div class="entry-form">
                 <div class="input-group">
                     <input type="text" 
                            id="description" 
                            placeholder="¿Qué estás estudiando?"
-                           class="input-field">
+                           class="input-field"
+                           required>
                     <div class="file-input-container">
                         <input type="file" 
                                id="photoInput" 
                                accept="image/*" 
-                               class="file-input"
-                               required>
+                               class="file-input">
                         <label for="photoInput" class="file-label">
-                            <span class="btn-icon">📷</span> Agregar foto
+                            <span class="btn-icon">📷</span> Agregar foto (opcional)
                         </label>
                     </div>
                 </div>
-                <button id="saveBtn" class="btn success" disabled>
+                <button id="saveBtn" class="btn success">
                     <span class="btn-icon">💾</span> Guardar
                 </button>
             </div>

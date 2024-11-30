@@ -177,62 +177,39 @@ const verificarConfiguracionCloudinary = () => {
 // Modificar la ruta de subida de imágenes
 app.post('/api/entries', upload.single('photo'), async (req, res) => {
     try {
-        if (!verificarConfiguracionCloudinary()) {
-            throw new Error('Configuración de Cloudinary incompleta');
-        }
-
-        console.log('=== Nueva subida iniciada ===');
-        console.log('Headers recibidos:', req.headers);
-        console.log('Body recibido:', req.body);
+        console.log('=== Nueva entrada iniciada ===');
         
-        // Verificar archivo
-        if (!req.file) {
-            console.error('No se recibió ningún archivo');
-            return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
+        if (!req.body.description) {
+            return res.status(400).json({ error: 'La descripción es requerida' });
         }
 
-        if (!req.file.buffer) {
-            console.error('Archivo recibido pero sin buffer');
-            return res.status(400).json({ error: 'Formato de imagen inválido' });
+        let photoUrl = null;
+
+        // Solo procesar la foto si se proporcionó una
+        if (req.file && req.file.buffer) {
+            try {
+                const uploadResult = await uploadToCloudinary(req.file.buffer);
+                photoUrl = uploadResult.secure_url;
+                console.log('Imagen subida:', photoUrl);
+            } catch (uploadError) {
+                console.error('Error al subir imagen:', uploadError);
+                // Continuamos sin imagen si hay error en la subida
+            }
         }
-
-        // Verificar tamaño
-        if (req.file.size > 10 * 1024 * 1024) {
-            return res.status(400).json({ error: 'Imagen demasiado grande (máx 10MB)' });
-        }
-
-        // Log de información del archivo
-        console.log('Archivo recibido:', {
-            nombre: req.file.originalname,
-            tipo: req.file.mimetype,
-            tamaño: `${(req.file.size / 1024 / 1024).toFixed(2)}MB`
-        });
-
-        // Verificar configuración de Cloudinary
-        if (!process.env.CLOUDINARY_URL) {
-            console.error('Falta configuración de Cloudinary');
-            return res.status(500).json({ error: 'Error de configuración del servidor' });
-        }
-
-        // Subir a Cloudinary
-        console.log('Iniciando subida a Cloudinary...');
-        const uploadResult = await uploadToCloudinary(req.file.buffer);
-        console.log('Imagen subida:', uploadResult.secure_url);
 
         // Crear entrada en la base de datos
         const timeEntry = new TimeEntry({
             userId: req.headers['user-id'],
             description: req.body.description,
-            duration: parseInt(req.body.duration),
+            duration: parseInt(req.body.duration) || 0,
             startTime: new Date(req.body.startTime),
             endTime: new Date(req.body.endTime),
-            photoUrl: uploadResult.secure_url
+            photoUrl: photoUrl // Será null si no se subió foto
         });
 
         await timeEntry.save();
         console.log('Entrada guardada en DB:', timeEntry._id);
 
-        // Responder al cliente
         res.status(201).json({
             message: 'Entrada creada exitosamente',
             entry: timeEntry
@@ -241,7 +218,7 @@ app.post('/api/entries', upload.single('photo'), async (req, res) => {
     } catch (error) {
         console.error('Error detallado:', error);
         return res.status(500).json({
-            error: 'Error de configuración del servidor de imágenes',
+            error: 'Error al procesar la entrada',
             detalles: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
